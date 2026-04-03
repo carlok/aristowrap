@@ -2,7 +2,7 @@
 
 Lean **4.28.0** + **Mathlib v4.28.0** with the [Aristotle](https://aristotle.harmonic.fun) CLI ([`aristotlelib`](https://pypi.org/project/aristotlelib/)) in a container, plus **`aristowrap`**: a small Python helper that stages only essential Lake/Lean files for upload, runs **`aristotle submit`**, and can **`verify`** a returned solution archive with **`lake build`**.
 
-**Naming:** this repository is **aristowrap**. The Lake package name stays **`aristotle_dckr`** and the root module **`AristotleDckr`** so manifests and Mathlib pins do not churn.
+The Lake package and root library module are both named **`aristowrap`** / **`Aristowrap`** (see [`lakefile.toml`](lakefile.toml) and [`Aristowrap.lean`](Aristowrap.lean)).
 
 **Podman is the recommended path**; Docker Compose works the same with a command swap.
 
@@ -78,6 +78,17 @@ uv run aristowrap --help
 uv run aristowrap submit --help
 uv run aristowrap verify --help
 ```
+
+### Python unit tests and coverage (host)
+
+Install dev dependencies and run **`pytest`** with coverage on **`scripts/aristowrap.py`**:
+
+```bash
+uv sync --extra dev
+uv run pytest tests/ -q --cov=scripts.aristowrap --cov-report=term-missing --cov-fail-under=55
+```
+
+The **Docker image build** runs the same suite after `lake build`: if any test fails or coverage drops below **55%**, **`docker compose build`** / **`podman compose build`** fails. That keeps the small wrapper script exercised in CI-like builds without a separate stage name.
 
 ## Prerequisites
 
