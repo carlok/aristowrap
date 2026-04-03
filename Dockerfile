@@ -17,6 +17,9 @@ WORKDIR /app
 
 COPY lean-toolchain lakefile.toml lake-manifest.json Aristowrap.lean ./
 
+# Single `lake build` only — no Mathlib in lakefile.toml, no `lake exe cache get`.
+# If your build log still shows "lake exe cache get" or "8007 file(s)" from mathlib,
+# you are on an old tree: `git pull` (see README).
 RUN lake build
 
 # Unit tests + coverage for scripts/aristowrap.py (fails build if tests or threshold fail)
