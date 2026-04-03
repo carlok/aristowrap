@@ -2,6 +2,8 @@ services:
   app:
     build: .
     image: aristowrap-lean:local
+    # Avoid `docker pull aristowrap-lean:local` (Hub denies unknown repos → noisy + confusing).
+    pull_policy: never
     working_dir: /app
     volumes:
       - .:/app

@@ -1,0 +1,11 @@
+# Keep `docker build` context tiny — only a few files are COPY'd in the Dockerfile.
+.git
+.lake
+lake-packages
+aristotle-output
+__pycache__
+.venv
+*.pyc
+.env
+aristotle.env
+tmp
