@@ -1,5 +1,7 @@
 # aristowrap
 
+> **Unofficial** helper for [Aristotle](https://aristotle.harmonic.fun) (Harmonic). **Not affiliated** with Harmonic. Using the API is subject to Harmonic’s [Terms of Use](https://aristotle.harmonic.fun/terms) and [Privacy Policy](https://aristotle.harmonic.fun/privacy).
+
 ## Description
 
 **aristowrap** is an **easy, Docker-first** way to use Harmonic’s [**aristotle**](https://aristotle.harmonic.fun) ([`aristotlelib`](https://pypi.org/project/aristotlelib/)) with **Lean 4** (and **Mathlib** in your own project when you add it)—without installing elan, Lake, or Python toolchains on your machine. Clone the repo, set your API key in a small env file, run **`compose build`** once, then **`compose run … aristowrap submit "…"`** from your project directory. The image ships **Lean 4.28.0**, the **`lake`** toolchain, the **`aristotle`** CLI, and **`aristowrap`**; the repo’s baked Lake project is **tiny** (no Mathlib) so **image builds stay small** and are less likely to exhaust disk during `podman`/`buildah` layer commits. Your real tree (often with Mathlib) lives on the host and is bind-mounted at **`/app`**.
@@ -14,6 +16,14 @@ Prefer running on the host? **`uv run aristowrap`** works too if you already hav
 **Lake package name:** **`aristowrap`**; root library: **`Aristowrap.lean`** (see [`lakefile.toml`](lakefile.toml)).
 
 If you still see **`AristotleDckr.lean`** or **`aristotle_dckr`** in an old checkout, remove/rename them and align with the files above—those names are obsolete.
+
+### Attribution & notifying Harmonic
+
+Harmonic asks that integrations **mention `@Aristotle-Harmonic` on GitHub** (for example in a **Pull Request** or **Issue** on this repository or your fork) when you ship or announce work that builds on Aristotle, so the team is notified.
+
+**Repository metadata (maintainers):** In GitHub **About**, add a short description and **Topics** such as: `lean4`, `lake`, `aristotle`, `docker`, `podman`, `formal-methods`.
+
+**Releases:** Tag stable commits (e.g. **`v0.1.0`**) so links and citations point at a fixed revision.
 
 ---
 
@@ -37,6 +47,19 @@ podman compose run --rm app aristowrap --help
 ```
 
 Use **`docker compose`** instead of **`podman compose`** if you use Docker. Compose bind-mounts **`.:/app`**; image name **`aristowrap-lean:local`**.
+
+### Building the image: Compose vs `podman build`
+
+On some installs, **`podman compose build`** prints that it is **Executing external compose provider `/usr/local/bin/docker-compose`**. That means the build talks to **Docker Desktop**, not Podman’s storage. **`docker system df`** can look fine on the host while **`RUN lake build`** still fails with **no space left on device**: **`elan`** unpacks the **Lean 4.28** toolchain under **`/root/.elan/`** and needs **several gigabytes free inside that engine’s VM** during extract and layer commit.
+
+**Workaround (recommended when Compose keeps hitting Docker):** build with Podman only, then use Compose for **`run`**:
+
+```bash
+podman build -t aristowrap-lean:local -f Dockerfile .
+podman compose run --rm app aristowrap --help
+```
+
+To stop delegating to Docker for **`compose build`**, see **`podman-compose(1)`** or **`podman compose --help`** on your system (provider / env / config varies by version).
 
 ---
 
@@ -158,9 +181,10 @@ uv run pytest tests/ -q --cov=scripts.aristowrap --cov-report=term-missing --cov
 - **Build log shows `RUN lake exe cache get && lake build` and Mathlib “8007 file(s)”:** Your checkout is **out of date**. Current **`Dockerfile`** uses only **`RUN lake build`** on a **Mathlib-free** skeleton; update with **`git pull origin main`**. Then **`podman compose build --no-cache`** once so old cached layers are not reused.
 - **`Image aristowrap-lean:local Pulling` → `denied` → `Building`:** Compose treats **`image:`** as a registry reference and tries **`docker pull`** first. There is no image on Docker Hub with that name, so the pull fails and Compose builds from **`Dockerfile`** instead. This is normal—not an Aristotle API change. This repo sets **`pull_policy: never`** on the **`app`** service so that pull is skipped (requires Docker Compose v2.23+ / a provider that honors the Compose spec).
 - **Unexpected long rebuild / `COPY lean-toolchain …` without “Using cache”:** Build cache is invalidated when those files change, when you build on a **different architecture** (e.g. `linux/amd64` vs `linux/arm64`) than last time, or when there is **no** prior local image. Harmonic does not control your image build.
-- **`no space left on device`** (often under **`/var/lib/containers/storage`** or **`/var/tmp`**): Podman/Buildah has **no** spare bytes. **`podman compose build --no-cache`** needs free space for every layer from scratch—**free disk first** (`df -h`, **`podman system df`**, remove unused images **`podman rmi`**, **`podman system prune -a`** if safe, grow the **Podman Machine** / VM disk in desktop settings). Until space is fixed, builds will keep failing at random steps.
+- **`no space left on device`** (often under **`/var/lib/containers/storage`** or **`/var/tmp`**): the **container engine** that is actually building has **no** spare bytes in **its** VM/disk (not necessarily what macOS Activity Monitor shows). **`podman compose build --no-cache`** needs free space for every layer from scratch—**free disk first** (`df -h`, **`podman system df`** / **`docker system df`**, remove unused images, **`podman system prune -a`** / **`docker system prune -a`** if safe, grow **Podman Machine** or **Docker Desktop** virtual disk). Until that store has headroom, builds will keep failing at random steps.
+- **`no space left on device`** while **`elan`** unpacks Lean (**`libLean.a`**, **`.elan/...tmp`**) during **`RUN lake build`**, and you use **`podman compose`** with the **docker-compose** provider: the build is running on **Docker**, not Podman—pruning Podman alone will not help. Use **`podman build -t aristowrap-lean:local -f Dockerfile .`** (see [Quick start](#building-the-image-compose-vs-podman-build)) or free space / grow **Docker Desktop**’s disk limit.
 - **Debian `apt-get` errors: “invalid signature” / “repository is not signed” on `RUN apt-get update`:** Usually the same as **disk full**: `Release` / `InRelease` files or indexes are **truncated**, so GPG checks fail. Fix storage space, then rebuild—**not** a broken Debian mirror in the `Dockerfile`.
-- **`no space left on device` during `RUN lake …` or when committing layers:** Buildah/Podman may need **several GB free** in **`/var/tmp`** (and image storage) while committing a layer—even for a **small** image, spikes happen. If you previously used a Mathlib-heavy `Dockerfile` step, that layer was **multi‑GB**; this repo’s image build no longer downloads Mathlib (your **mounted** project can still be large). Free disk / grow the Podman machine disk / set **`TMPDIR`** to a roomy filesystem; **`podman system prune`**. On macOS Podman Machine: increase virtual disk in **Podman Desktop → settings**.
+- **`no space left on device` during `RUN lake …` or when committing layers:** the active engine (**Podman** or **Docker**) may need **several GB free** in its VM for **`elan`** extract plus layer commit—even for a **small** Lake package, the **Lean toolchain** is large. If you previously used a Mathlib-heavy `Dockerfile` step, old cached layers could still be **multi‑GB**; this repo’s **`Dockerfile`** no longer downloads Mathlib (your **mounted** project can still be large). Free disk, **`podman system prune`** / **`docker builder prune`**, grow **Podman Machine** or **Docker Desktop** virtual disk. If Compose builds via Docker, prefer **`podman build`** for the image (see [above](#building-the-image-compose-vs-podman-build)).
 - **`--no-wait` and no files:** Expected; read stderr for `Project created`.
 - **Compose `env_file` errors:** Create **`aristotle.env`** next to `docker-compose.yml`.
 - **Slow or failing `lake build`:** Run `lake exe cache get` again in the container; check network.
