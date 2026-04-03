@@ -1,0 +1,48 @@
+# Build on every PR; push to Docker Hub only on push to main or version tags.
+# Repo secrets: DOCKERHUB_USERNAME, DOCKERHUB_TOKEN (Hub access token, not account password).
+# Trivial bump to verify Actions → Docker Hub push (2026-04-03).
+name: Docker Image CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+env:
+  IMAGE: carloperassi/aristowrap
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build . --file Dockerfile --tag "${IMAGE}:ci"
+
+      - name: Log in to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push branch main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          SHORT="${GITHUB_SHA:0:7}"
+          docker tag "${IMAGE}:ci" "${IMAGE}:main"
+          docker tag "${IMAGE}:ci" "${IMAGE}:${SHORT}"
+          docker push "${IMAGE}:main"
+          docker push "${IMAGE}:${SHORT}"
+
+      - name: Push release tag
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          docker tag "${IMAGE}:ci" "${IMAGE}:${VERSION}"
+          docker tag "${IMAGE}:ci" "${IMAGE}:latest"
+          docker push "${IMAGE}:${VERSION}"
+          docker push "${IMAGE}:latest"
