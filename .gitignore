@@ -21,3 +21,6 @@ original_prompt.md
 
 # Aristotle CLI downloads (--wait --destination)
 aristotle-output/
+
+# Local scratch (matches .dockerignore)
+tmp/
