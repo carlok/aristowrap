@@ -1,0 +1,23 @@
+# Local API key (never commit)
+aristotle.env
+.env
+.env.local
+*.env.local
+
+# Lake / Lean build artifacts
+.lake/
+lake-packages/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+original_prompt.md
+
+# Aristotle CLI downloads (--wait --destination)
+aristotle-output/

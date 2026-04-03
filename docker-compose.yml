@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    image: aristowrap-lean:local
+    working_dir: /app
+    volumes:
+      - .:/app
+    env_file:
+      - aristotle.env
+    stdin_open: true
+    tty: true
