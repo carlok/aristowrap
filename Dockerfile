@@ -1,4 +1,4 @@
-# Lean 4.28 + Lake/Mathlib (smoke) + uv + aristotlelib CLI. No API keys in image.
+# Lean 4.28 + Lake (minimal smoke lib) + uv + aristotlelib CLI. No API keys in image.
 FROM python:3.12-slim-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -17,7 +17,7 @@ WORKDIR /app
 
 COPY lean-toolchain lakefile.toml lake-manifest.json Aristowrap.lean ./
 
-RUN lake exe cache get && lake build
+RUN lake build
 
 # Unit tests + coverage for scripts/aristowrap.py (fails build if tests or threshold fail)
 WORKDIR /tmp/aristowrap-pytest

@@ -2,10 +2,9 @@ name = "aristowrap"
 version = "0.1.0"
 defaultTargets = ["Aristowrap"]
 
-[[require]]
-name = "mathlib"
-git = "https://github.com/leanprover-community/mathlib4.git"
-rev = "v4.28.0"
+# No Mathlib here: keeps Docker/Podman image builds small. At runtime, `.:/app`
+# bind-mounts your real project (often with Mathlib). `verify` builds whatever is
+# inside the submitted tarball.
 
 [[lean_lib]]
 name = "Aristowrap"

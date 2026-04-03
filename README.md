@@ -2,7 +2,7 @@
 
 ## Description
 
-**aristowrap** is an **easy, Docker-first** way to use Harmonic’s [**aristotle**](https://aristotle.harmonic.fun) ([`aristotlelib`](https://pypi.org/project/aristotlelib/)) with **Lean 4** and **Mathlib**—without installing elan, Lake, or Python toolchains on your machine. Clone the repo, set your API key in a small env file, run **`compose build`** once, then **`compose run … aristowrap submit "…"`** from your project directory. The image ships **Lean 4.28.0**, **Mathlib v4.28.0**, the **`aristotle`** CLI, and **`aristowrap`** ready to go; your checkout is bind-mounted at **`/app`**, so you edit on the host and run everything in a reproducible container.
+**aristowrap** is an **easy, Docker-first** way to use Harmonic’s [**aristotle**](https://aristotle.harmonic.fun) ([`aristotlelib`](https://pypi.org/project/aristotlelib/)) with **Lean 4** (and **Mathlib** in your own project when you add it)—without installing elan, Lake, or Python toolchains on your machine. Clone the repo, set your API key in a small env file, run **`compose build`** once, then **`compose run … aristowrap submit "…"`** from your project directory. The image ships **Lean 4.28.0**, the **`lake`** toolchain, the **`aristotle`** CLI, and **`aristowrap`**; the repo’s baked Lake project is **tiny** (no Mathlib) so **image builds stay small** and are less likely to exhaust disk during `podman`/`buildah` layer commits. Your real tree (often with Mathlib) lives on the host and is bind-mounted at **`/app`**.
 
 The **`aristowrap`** command is a thin Python wrapper that makes day-to-day use smoother:
 
@@ -19,7 +19,7 @@ If you still see **`AristotleDckr.lean`** or **`aristotle_dckr`** in an old chec
 
 ## Requirements
 
-- **Container workflow:** [Podman](https://podman.io/) or Docker with Compose v2, network for Mathlib cache and (when submitting) the Aristotle API.
+- **Container workflow:** [Podman](https://podman.io/) or Docker with Compose v2, network when **`lake`** / Mathlib must be fetched (e.g. your mounted project or a **`verify`** tarball) and (when submitting) the Aristotle API.
 - **Host `uv run aristowrap`:** Python ≥3.11, `aristotle` on `PATH` (e.g. `uv tool install aristotlelib`), and **`lake`** for `verify`.
 
 ---
@@ -129,7 +129,7 @@ uv run aristowrap verify --help
 
 ## Container details
 
-- **Dockerfile** runs `lake exe cache get && lake build` during image build, then **pytest + coverage** on `scripts/aristowrap.py` (fails build if tests fail or coverage is below **55%**).
+- **Dockerfile** runs **`lake build`** on a **minimal** Lake package (no Mathlib) during image build, then **pytest + coverage** on `scripts/aristowrap.py` (fails build if tests fail or coverage is below **55%**).
 - **`.dockerignore`** excludes **`.lake`**, **`aristotle-output`**, **`.git`**, etc., so **`docker build`** does not upload hundreds of MB of context (without it, Compose can look like it is “rebuilding everything” slowly for no reason).
 - At **runtime**, **`.:/app`** overlays the image’s `/app`, so you develop against your checkout, not only the image layer.
 
@@ -157,7 +157,7 @@ uv run pytest tests/ -q --cov=scripts.aristowrap --cov-report=term-missing --cov
 
 - **`Image aristowrap-lean:local Pulling` → `denied` → `Building`:** Compose treats **`image:`** as a registry reference and tries **`docker pull`** first. There is no image on Docker Hub with that name, so the pull fails and Compose builds from **`Dockerfile`** instead. This is normal—not an Aristotle API change. This repo sets **`pull_policy: never`** on the **`app`** service so that pull is skipped (requires Docker Compose v2.23+ / a provider that honors the Compose spec).
 - **Unexpected long rebuild / `COPY lean-toolchain …` without “Using cache”:** Build cache is invalidated when those files change, when you build on a **different architecture** (e.g. `linux/amd64` vs `linux/arm64`) than last time, or when there is **no** prior local image. Harmonic does not control your image build.
-- **`no space left on device` during `RUN lake …` or when committing layers:** The Lean toolchain + Mathlib cache layer is **large** (multi‑GB). Free disk space on the volume Docker/Podman uses (Docker Desktop: **Settings → Resources → Disk image size**; also **`docker system prune`** / **`podman system prune`**). Then run **`podman compose build`** again when you have headroom.
+- **`no space left on device` during `RUN lake …` or when committing layers:** Buildah/Podman may need **several GB free** in **`/var/tmp`** (and image storage) while committing a layer—even for a **small** image, spikes happen. If you previously used a Mathlib-heavy `Dockerfile` step, that layer was **multi‑GB**; this repo’s image build no longer downloads Mathlib (your **mounted** project can still be large). Free disk / grow the Podman machine disk / set **`TMPDIR`** to a roomy filesystem; **`podman system prune`**. On macOS Podman Machine: increase virtual disk in **Podman Desktop → settings**.
 - **`--no-wait` and no files:** Expected; read stderr for `Project created`.
 - **Compose `env_file` errors:** Create **`aristotle.env`** next to `docker-compose.yml`.
 - **Slow or failing `lake build`:** Run `lake exe cache get` again in the container; check network.
