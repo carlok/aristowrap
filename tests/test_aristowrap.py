@@ -97,6 +97,19 @@ def test_find_lake_root_search_nested(tmp_path: Path) -> None:
     assert find_lake_root(root) == root / "b" / "c"
 
 
+def test_find_lake_root_accepts_lakefile_lean(tmp_path: Path) -> None:
+    root = tmp_path / "x"
+    root.mkdir()
+    (root / "lakefile.lean").touch()
+    assert find_lake_root(root) == root
+
+    outer = tmp_path / "archive"
+    inner = outer / "solution"
+    inner.mkdir(parents=True)
+    (inner / "lakefile.lean").touch()
+    assert find_lake_root(outer) == inner
+
+
 def test_find_lake_root_missing_raises(tmp_path: Path) -> None:
     root = tmp_path / "none"
     root.mkdir()

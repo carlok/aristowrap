@@ -32,6 +32,8 @@ ROOT_COPY_NAMES = (
     "lean.toml",
 )
 
+LAKEFILE_NAMES = ("lakefile.toml", "lakefile.lean")
+
 
 def _should_skip(rel_parts: tuple[str, ...]) -> bool:
     return any(p in SKIP_SEGMENTS for p in rel_parts)
@@ -134,15 +136,18 @@ def cmd_submit(args: argparse.Namespace) -> int:
 
 
 def find_lake_root(start: Path) -> Path:
-    if (start / "lakefile.toml").is_file():
+    if any((start / n).is_file() for n in LAKEFILE_NAMES):
         return start
     dirs = [p for p in start.iterdir() if p.is_dir()]
-    if len(dirs) == 1 and (dirs[0] / "lakefile.toml").is_file():
+    if len(dirs) == 1 and any((dirs[0] / n).is_file() for n in LAKEFILE_NAMES):
         return dirs[0]
-    found = next(start.rglob("lakefile.toml"), None)
-    if found is not None:
-        return found.parent
-    raise SystemExit("aristowrap verify: no lakefile.toml under extracted archive")
+    for name in LAKEFILE_NAMES:
+        found = next(start.rglob(name), None)
+        if found is not None:
+            return found.parent
+    raise SystemExit(
+        "aristowrap verify: no lakefile.toml or lakefile.lean under extracted archive"
+    )
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
