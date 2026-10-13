@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TextIO
 
@@ -118,7 +118,7 @@ def _run(
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as lf:
-        lf.write(f"\n--- {datetime.now(timezone.utc).isoformat()} ---\n")
+        lf.write(f"\n--- {datetime.now(UTC).isoformat()} ---\n")
         lf.write(f"$ {' '.join(cmd)}\n")
         lf.flush()
         proc = subprocess.Popen(
@@ -151,12 +151,8 @@ def cmd_submit(args: argparse.Namespace) -> int:
     else:
         raise SystemExit("aristowrap submit: pass PROMPT or --prompt-file")
 
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    dest_tar = (
-        Path(args.destination).resolve()
-        if args.destination
-        else out_dir / f"solution-{ts}.tar.gz"
-    )
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    dest_tar = Path(args.destination).resolve() if args.destination else out_dir / f"solution-{ts}.tar.gz"
 
     log_path = Path(args.log).resolve() if args.log else None
 
@@ -195,17 +191,11 @@ def find_lake_root(start: Path) -> Path:
                 candidates.append((depth, rank, here))
     if candidates:
         return min(candidates)[2]
-    raise SystemExit(
-        "aristowrap verify: no lakefile.toml or lakefile.lean under extracted archive"
-    )
+    raise SystemExit("aristowrap verify: no lakefile.toml or lakefile.lean under extracted archive")
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
-    out_base = (
-        Path(args.output_dir).resolve()
-        if args.output_dir
-        else default_output_dir()
-    )
+    out_base = Path(args.output_dir).resolve() if args.output_dir else default_output_dir()
 
     if args.tarball:
         tar_path = Path(args.tarball).resolve()
@@ -218,9 +208,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             reverse=True,
         )
         if not tars:
-            raise SystemExit(
-                "aristowrap verify: no .tar.gz in output dir; pass TARBALL path"
-            )
+            raise SystemExit("aristowrap verify: no .tar.gz in output dir; pass TARBALL path")
         tar_path = tars[0]
 
     if not tar_path.is_file():

@@ -43,7 +43,7 @@ RUN lake build
 # Unit tests + coverage for scripts/aristowrap.py against uv.lock
 # (fails the build if a test fails or coverage drops below fail_under in pyproject.toml).
 WORKDIR /tmp/aristowrap-pytest
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 COPY scripts ./scripts
 COPY tests ./tests
 RUN UV_PROJECT_ENVIRONMENT=/tmp/aristowrap-venv uv sync --extra dev --frozen \

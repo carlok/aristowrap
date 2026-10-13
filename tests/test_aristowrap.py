@@ -305,9 +305,7 @@ def test_run_without_log_returns_exit_code(fake_bin: Path, monkeypatch: pytest.M
     assert aw._run(["aristotle", "x"]) == 7
 
 
-def test_run_with_log_tees_output(
-    fake_bin: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def test_run_with_log_tees_output(fake_bin: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     log = tmp_path / "logs" / "submit.log"
     assert aw._run(["aristotle", "x"], log_path=log) == 0
     assert "aristotle says hi" in capsys.readouterr().out
@@ -613,9 +611,7 @@ def test_cmd_verify_picks_newest_tarball(
     assert str(new) in capsys.readouterr().err
 
 
-def test_cmd_verify_default_output_dir_from_env(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_cmd_verify_default_output_dir_from_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ARISTOWRAP_OUTPUT_DIR", str(tmp_path / "missing"))
     args = build_parser().parse_args(["verify"])
     with pytest.raises(SystemExit, match="output dir missing"):
