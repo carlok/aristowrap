@@ -12,6 +12,7 @@ import tarfile
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TextIO
 
 SKIP_SEGMENTS = frozenset(
     {
@@ -21,6 +22,9 @@ SKIP_SEGMENTS = frozenset(
         "aristotle-output",
         "__pycache__",
         ".venv",
+        "tmp",
+        "build",
+        "node_modules",
     }
 )
 
@@ -50,14 +54,20 @@ def stage_essential_project(source: Path, dest: Path) -> None:
         if src.is_file():
             shutil.copy2(src, dest / name)
             copied += 1
-    for path in source.rglob("*.lean"):
-        rel = path.relative_to(source)
-        if _should_skip(rel.parts):
-            continue
-        out = dest / rel
-        out.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, out)
-        copied += 1
+    for dirpath, dirnames, filenames in os.walk(source):
+        # Prune in place so dependency trees (.lake/packages, ...) are never walked.
+        dirnames[:] = [d for d in dirnames if d not in SKIP_SEGMENTS]
+        for fn in filenames:
+            if not fn.endswith(".lean"):
+                continue
+            path = Path(dirpath) / fn
+            if path.is_symlink():
+                # A link could point outside the project and get uploaded.
+                continue
+            out = dest / path.relative_to(source)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, out)
+            copied += 1
     if copied == 0:
         raise SystemExit(
             "aristowrap: nothing to stage (need lean-toolchain / lakefile / manifest and/or .lean files)"
@@ -72,14 +82,39 @@ def default_output_dir() -> Path:
     return Path(os.environ.get("ARISTOWRAP_OUTPUT_DIR", "/app/aristotle-output"))
 
 
+def _finish(proc: subprocess.Popen[str], tee: TextIO | None = None) -> int:
+    """Wait for `proc` (optionally tee-ing its output); stop it cleanly on Ctrl-C."""
+    try:
+        if tee is not None:
+            if proc.stdout is None:
+                raise RuntimeError("aristowrap: child stdout was not captured")
+            for line in proc.stdout:
+                sys.stdout.write(line)
+                tee.write(line)
+                tee.flush()
+        return proc.wait()
+    except KeyboardInterrupt:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+        return 130
+
+
 def _run(
     cmd: list[str],
     *,
     cwd: Path | None = None,
     log_path: Path | None = None,
 ) -> int:
+    if shutil.which(cmd[0]) is None:
+        print(f"aristowrap: {cmd[0]!r} not found on PATH", file=sys.stderr)
+        return 127
+
     if log_path is None:
-        return subprocess.call(cmd, cwd=cwd)
+        return _finish(subprocess.Popen(cmd, cwd=cwd))
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as lf:
@@ -94,17 +129,17 @@ def _run(
             text=True,
             bufsize=1,
         )
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            sys.stdout.write(line)
-            lf.write(line)
-            lf.flush()
-        return proc.wait()
+        return _finish(proc, tee=lf)
 
 
 def cmd_submit(args: argparse.Namespace) -> int:
-    source = Path(args.source_project_dir).resolve()
-    out_dir = Path(args.output_dir).resolve()
+    if args.destination and args.no_wait:
+        raise SystemExit(
+            "aristowrap submit: --destination needs the result, so it cannot be combined with --no-wait"
+        )
+
+    source = Path(args.source_project_dir or default_project_dir()).resolve()
+    out_dir = Path(args.output_dir or default_output_dir()).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if args.prompt_file:
@@ -125,26 +160,41 @@ def cmd_submit(args: argparse.Namespace) -> int:
 
     log_path = Path(args.log).resolve() if args.log else None
 
+    if not os.environ.get("ARISTOTLE_API_KEY"):
+        print(
+            "aristowrap: ARISTOTLE_API_KEY is not set; aristotle may fail to authenticate",
+            file=sys.stderr,
+        )
+
     with tempfile.TemporaryDirectory(prefix="aristowrap-stage-") as tmp:
         stage = Path(tmp)
         stage_essential_project(source, stage)
-        cmd = ["aristotle", "submit", prompt, "--project-dir", str(stage)]
+        cmd = ["aristotle", "submit", "--project-dir", str(stage)]
         if not args.no_wait:
-            cmd.append("--wait")
-            cmd.extend(["--destination", str(dest_tar)])
+            dest_tar.parent.mkdir(parents=True, exist_ok=True)
+            cmd.extend(["--wait", "--destination", str(dest_tar)])
+        # `--` keeps a prompt that starts with "-" from being parsed as an option.
+        cmd.extend(["--", prompt])
         return _run(cmd, log_path=log_path)
 
 
 def find_lake_root(start: Path) -> Path:
+    """Return the Lake root: top level, a single wrapper dir, else the shallowest lakefile."""
     if any((start / n).is_file() for n in LAKEFILE_NAMES):
         return start
-    dirs = [p for p in start.iterdir() if p.is_dir()]
+    dirs = [p for p in start.iterdir() if p.is_dir() and p.name != ".lake"]
     if len(dirs) == 1 and any((dirs[0] / n).is_file() for n in LAKEFILE_NAMES):
         return dirs[0]
-    for name in LAKEFILE_NAMES:
-        found = next(start.rglob(name), None)
-        if found is not None:
-            return found.parent
+    candidates: list[tuple[int, int, Path]] = []
+    for dirpath, dirnames, filenames in os.walk(start):
+        dirnames[:] = [d for d in dirnames if d != ".lake"]
+        here = Path(dirpath)
+        depth = len(here.relative_to(start).parts)
+        for rank, name in enumerate(LAKEFILE_NAMES):
+            if name in filenames:
+                candidates.append((depth, rank, here))
+    if candidates:
+        return min(candidates)[2]
     raise SystemExit(
         "aristowrap verify: no lakefile.toml or lakefile.lean under extracted archive"
     )
@@ -176,14 +226,19 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if not tar_path.is_file():
         raise SystemExit(f"aristowrap verify: not a file: {tar_path}")
 
-    extract_kw: dict[str, str] = {}
-    if sys.version_info >= (3, 12):
-        extract_kw["filter"] = "data"
+    if not hasattr(tarfile, "data_filter"):
+        raise SystemExit(
+            "aristowrap verify: this Python's tarfile has no extraction filters "
+            "(need 3.11.4+); refusing to extract an untrusted archive"
+        )
 
     with tempfile.TemporaryDirectory(prefix="aristowrap-verify-") as tmp:
         root = Path(tmp)
         with tarfile.open(tar_path, "r:*") as tf:
-            tf.extractall(root, **extract_kw)
+            try:
+                tf.extractall(root, filter="data")
+            except tarfile.FilterError as exc:
+                raise SystemExit(f"aristowrap verify: unsafe archive rejected: {exc}") from exc
         lake_root = find_lake_root(root)
         print(f"aristowrap verify: using lake root {lake_root}", file=sys.stderr)
         print(f"aristowrap verify: tarball {tar_path}", file=sys.stderr)
@@ -265,15 +320,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    parser = build_parser()
-    args = parser.parse_args()
-    if args.command == "submit":
-        if args.source_project_dir is None:
-            args.source_project_dir = default_project_dir()
-        if args.output_dir is None:
-            args.output_dir = default_output_dir()
+    args = build_parser().parse_args()
     return int(args.func(args))
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
