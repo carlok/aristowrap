@@ -17,8 +17,6 @@ __pycache__/
 .coverage
 htmlcov/
 
-original_prompt.md
-
 # Aristotle CLI downloads (--wait --destination)
 aristotle-output/
 
