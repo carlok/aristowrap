@@ -1,5 +1,5 @@
 # Lean + Lake (minimal smoke lib; version comes from ./lean-toolchain) + uv + aristotlelib CLI.
-# No API keys in the image. Base: Debian bookworm, Python 3.12.
+# No API keys in the image. Base: Debian bookworm, Python 3.14.
 FROM python:3.14-slim-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

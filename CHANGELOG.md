@@ -3,6 +3,12 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- Image base is now `python:3.14-slim-bookworm` (Dependabot #4); CI tests Python 3.11 to 3.14.
+
 ## [0.1.1] - 2026-10-13
 
 ### Security
