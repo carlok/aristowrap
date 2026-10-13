@@ -27,3 +27,6 @@ pythonpath = ["."]
 [tool.coverage.run]
 branch = true
 source = ["scripts"]
+
+[tool.coverage.report]
+fail_under = 90
