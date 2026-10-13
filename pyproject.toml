@@ -1,6 +1,6 @@
 [project]
 name = "aristowrap"
-version = "0.1.0"
+version = "0.1.1"
 description = "Thin wrapper around Harmonic's aristotle CLI: essential-only project staging, submit, and verify via lake build."
 readme = "README.md"
 requires-python = ">=3.11"
