@@ -19,7 +19,7 @@ To check the image: `docker build -t aristowrap-lean:local .` (the build runs th
 - Branch from `main`, keep one topic per PR.
 - Add or update tests for behavior changes. A bug fix should come with a test that fails without it.
 - Update `README.md` when a flag, default or exit code changes, and add a line to `CHANGELOG.md` under *Unreleased*.
-- Run `ruff format .` before pushing; CI checks it on Python 3.11, 3.12 and 3.13.
+- Run `ruff format .` before pushing; CI checks it on Python 3.11 to 3.14.
 
 ## Reporting problems
 
