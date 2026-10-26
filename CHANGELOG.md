@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- Image base is now `python:3.14-slim-bookworm` (Dependabot #4); CI tests Python 3.11 to 3.14.
+- Image base is now `python:3.15-slim-bookworm`; CI tests Python 3.11 to 3.15.
 
 ## [0.1.1] - 2026-10-13
 
