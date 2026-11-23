@@ -1,5 +1,7 @@
 # aristowrap
 
+> **Archived. This project is no longer maintained.** The repository is read-only: no further updates, fixes or releases are planned, and issues and pull requests are not monitored. The last release is [v0.1.1](https://github.com/carlok/aristowrap/releases/tag/v0.1.1); published images and tags are left as they are. Fork it if you want to carry it on.
+
 [![Docker Image CI](https://github.com/carlok/aristowrap/actions/workflows/docker.yml/badge.svg)](https://github.com/carlok/aristowrap/actions/workflows/docker.yml)
 [![License: MIT](https://img.shields.io/github/license/carlok/aristowrap)](LICENSE)
 
